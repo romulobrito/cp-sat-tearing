@@ -1,0 +1,120 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\title{CP-SAT Tearing: Formulation, Execution, and Auditability}
+\author{Project +Digital}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+This repository provides a reproducible CP-SAT pipeline for structural variable
+classification in equation systems with closed tearing semantics. The goals are:
+\begin{itemize}
+  \item run all studied cases under a deterministic configuration;
+  \item classify variables into operationally meaningful structural classes;
+  \item generate auditable artifacts for traceability and reporting.
+\end{itemize}
+
+\section{Modeling summary}
+Given equations $Q$ and variables $V$, each equation selects at most one output
+variable. Local tear cuts may be introduced to break cycles in the execution
+graph. The model optimizes structural coverage in phases, with deterministic
+settings and explicit status reporting.
+
+\subsection{Main sets}
+\begin{itemize}
+  \item Measured variables ($V^{m}$): directly instrumented variables.
+  \item Known constants ($V^{k}$): known parameters available as inputs.
+  \item Directly inferred variables: acyclic propagation from known inputs.
+  \item Closed-loop inferred variables: inferred in cyclic blocks resolved by
+  closed tearing.
+  \item Open tears and open-conditioned variables: variables that require
+  external tear values to become numerically available.
+\end{itemize}
+
+\subsection{Coverage metrics}
+The implementation reports three complementary metrics:
+\begin{align}
+C_{dir} &= \frac{|V^{m} \cup V^{k} \cup V^{dir}|}{|V|}, \\
+C_{cl}  &= \frac{|V^{m} \cup V^{k} \cup V^{dir} \cup V^{loop} \cup V^{tear,closed}|}{|V|}, \\
+C_{ext} &= \frac{|V^{m} \cup V^{k} \cup V^{dir} \cup V^{loop} \cup V^{tear,closed} \cup V^{cond,open} \cup V^{tear,closed,ext}|}{|V|}.
+\end{align}
+
+Interpretation:
+\begin{itemize}
+  \item $C_{dir}$: direct acyclic reach;
+  \item $C_{cl}$: autonomous closed coverage (no open-tear dependency);
+  \item $C_{ext}$: conditional reach if open tears are supplied externally.
+\end{itemize}
+
+\section{Repository layout}
+\begin{itemize}
+  \item \texttt{src/}: solver core, case registry, and case definitions.
+  \item \texttt{scripts/}: execution entrypoints.
+  \item \texttt{tests/}: semantic smoke tests.
+  \item \texttt{results/}: generated artifacts (ignored by git).
+\end{itemize}
+
+\section{How to run}
+\subsection{Environment setup}
+\begin{verbatim}
+python3 -m pip install -r requirements.txt
+\end{verbatim}
+
+\subsection{Semantic checks}
+\begin{verbatim}
+python3 tests/test_tearing_semantics.py
+\end{verbatim}
+
+\subsection{Run studied cases}
+\begin{verbatim}
+python3 scripts/run_cases.py
+\end{verbatim}
+
+Optional controls:
+\begin{verbatim}
+python3 scripts/run_cases.py --time-limit 60 --allow-feasible
+python3 scripts/run_cases.py --case 01_urs_ideal --case 18_narasimhan
+\end{verbatim}
+
+\subsection{Additional analyses}
+\begin{verbatim}
+python3 scripts/run_matching_ablation.py
+python3 scripts/run_time_benchmark.py --case 18_narasimhan --k 17 --n-samples 1000
+\end{verbatim}
+
+\section{Audit trail}
+Each run creates a timestamped folder:
+\begin{verbatim}
+results/run_YYYYMMDD_HHMMSS/
+\end{verbatim}
+with consolidated artifacts:
+\begin{itemize}
+  \item \texttt{tearing\_results\_table.csv}
+  \item \texttt{tearing\_results\_table.xlsx}
+  \item \texttt{tearing\_results\_table.tex}
+  \item \texttt{auditoria.json}
+\end{itemize}
+
+The \texttt{auditoria.json} file records:
+\begin{itemize}
+  \item semantics identifier;
+  \item execution timestamp, Python version, platform;
+  \item solver configuration;
+  \item global checks (all optimal, DAG consistency, etc.).
+\end{itemize}
+
+\section{Determinism notes}
+The solver is configured with fixed seed and deterministic phase flow. Minor
+runtime variation is expected across machines, but structural classifications
+and coverage metrics should remain stable under equivalent dependencies.
+
+\end{document}
