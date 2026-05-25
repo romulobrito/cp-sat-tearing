@@ -9,6 +9,7 @@ venv/
 results/
 results_ablation_matching/
 results_time_benchmark/
+tearing_results_table.tex
 *.xlsx
 *.csv
 *.log
