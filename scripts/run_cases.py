@@ -18,8 +18,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from case_registry import CaseSpec, build_cases
-from cpsat_tearing_core import TearingConfig, TearingResult, classify_tearing
+from case_registry import CaseSpec, build_cases  # type: ignore[reportMissingImports]
+from cpsat_tearing_core import TearingConfig, TearingResult, classify_tearing  # type: ignore[reportMissingImports]
 
 OUT_ROOT = PROJECT_ROOT / "results"
 
@@ -67,6 +67,41 @@ def _summary_row(case: CaseSpec, result: TearingResult) -> Dict[str, object]:
     }
 
 
+def _execution_order_rows(case: CaseSpec, result: TearingResult) -> List[Dict[str, object]]:
+    """Build execution-order rows grouped by topological level.
+
+    Only variables with a selected output equation are included.
+    """
+    rows: List[Dict[str, object]] = []
+    grouped: Dict[int, List[str]] = {}
+    grouped_eqs: Dict[int, set[str]] = {}
+
+    for variable, equation in result.output_equation.items():
+        if not equation:
+            continue
+        level_raw = result.levels.get(variable)
+        if level_raw is None or str(level_raw) == "":
+            continue
+        level = int(level_raw)
+        grouped.setdefault(level, []).append(variable)
+        grouped_eqs.setdefault(level, set()).add(equation)
+
+    for level in sorted(grouped):
+        variables = sorted(grouped[level])
+        equations = sorted(grouped_eqs[level])
+        rows.append(
+            {
+                "CaseSlug": case.slug,
+                "Case": case.name,
+                "Level": level,
+                "Variables": ", ".join(variables),
+                "OutputEquations": ", ".join(equations),
+                "VariableCount": len(variables),
+            }
+        )
+    return rows
+
+
 def _write_case(case_dir: Path, case: CaseSpec, result: TearingResult, row: Dict[str, object]) -> None:
     case_dir.mkdir(parents=True, exist_ok=True)
     (case_dir / "resultado.json").write_text(
@@ -99,10 +134,13 @@ def _write_case(case_dir: Path, case: CaseSpec, result: TearingResult, row: Dict
     )} for q, v in result.tear_pairs]
     pd.DataFrame(variable_rows).to_csv(case_dir / "variables.csv", index=False)
     pd.DataFrame(tears_rows).to_csv(case_dir / "tears.csv", index=False)
+    execution_order_rows = _execution_order_rows(case, result)
+    pd.DataFrame(execution_order_rows).to_csv(case_dir / "execution_order.csv", index=False)
     with pd.ExcelWriter(case_dir / "resultado.xlsx", engine="openpyxl") as writer:
         pd.DataFrame([row]).to_excel(writer, sheet_name="Summary", index=False)
         pd.DataFrame(variable_rows).to_excel(writer, sheet_name="Variables", index=False)
         pd.DataFrame(tears_rows).to_excel(writer, sheet_name="Tears", index=False)
+        pd.DataFrame(execution_order_rows).to_excel(writer, sheet_name="ExecutionOrder", index=False)
         pd.DataFrame(result.cut_graph_edges, columns=["Source", "Target"]).to_excel(writer, sheet_name="ExecutionGraph", index=False)
         pd.DataFrame(result.full_graph_edges, columns=["Source", "Target"]).to_excel(writer, sheet_name="FullGraph", index=False)
 
@@ -185,6 +223,7 @@ def main() -> None:
     run_dir = OUT_ROOT / f"run_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
     rows: List[Dict[str, object]] = []
+    execution_order_rows_all: List[Dict[str, object]] = []
     print(f"Output: {run_dir}")
     for case in cases:
         result = classify_tearing(
@@ -193,6 +232,7 @@ def main() -> None:
         )
         row = _summary_row(case, result)
         rows.append(row)
+        execution_order_rows_all.extend(_execution_order_rows(case, result))
         _write_case(run_dir / case.slug, case, result, row)
         print(
             f"[{case.order:02d}] {case.name}: closed={row['ClosedCoverage']} "
@@ -204,8 +244,10 @@ def main() -> None:
     consol = run_dir / "consolidated"
     consol.mkdir(exist_ok=True)
     df.to_csv(consol / "tearing_results_table.csv", index=False)
+    pd.DataFrame(execution_order_rows_all).to_csv(consol / "execution_order_summary.csv", index=False)
     with pd.ExcelWriter(consol / "tearing_results_table.xlsx", engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Summary", index=False)
+        pd.DataFrame(execution_order_rows_all).to_excel(writer, sheet_name="ExecutionOrder", index=False)
     _write_latex_table(df, consol / "tearing_results_table.tex")
     _write_latex_table(df, PROJECT_ROOT / "tearing_results_table.tex")
     audit = {
