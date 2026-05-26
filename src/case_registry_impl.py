@@ -20,10 +20,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import narasimhan_steam_plant as narasimhan  # noqa: E402
-import classification_Sanchez_and_Romagnoli as olefinas  # noqa: E402
-import URS_classification_cases_ideal_real_real_min_inst_kpi_bancos as urs_bancos  # noqa: E402
-import URS_classification_real_min_inst_kpis_estagios as urs_estagios  # noqa: E402
+import narasimhan_case as narasimhan  # noqa: E402
+import olefins_case as olefinas  # noqa: E402
+import urs_document_bank_case as urs_bancos  # noqa: E402
+import urs_document_stage_case as urs_estagios  # noqa: E402
 
 Equations = Dict[str, List[str]]
 
